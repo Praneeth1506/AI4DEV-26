@@ -27,6 +27,20 @@ const AGENT_CONFIG = {
       </svg>
     ),
   },
+  gemini_challenger: {
+    label: "Gemini Challenger",
+    bg: "bg-purple-50",
+    border: "border-purple-200",
+    badge: "bg-purple-100 text-purple-800",
+    dot: "bg-purple-400",
+    accent: "text-purple-600",
+    headerBg: "bg-purple-100/60",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
   verifier: {
     label: "Verifier",
     bg: "bg-blue-50",
@@ -73,8 +87,116 @@ const AGENT_CONFIG = {
 
 export { AGENT_CONFIG };
 
+// Try to parse verifier structured JSON output
+function tryParseVerifierJSON(content) {
+  if (!content) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed && Array.isArray(parsed.claims)) return parsed;
+  } catch (_) {}
+  return null;
+}
+
+const VERDICT_INLINE = {
+  CONFIRMED:   { bg: "#EAF3DE", color: "#27500A" },
+  DISPUTED:    { bg: "#FAECE7", color: "#712B13" },
+  UNSUPPORTED: { bg: "#F1EFE8", color: "#444441" },
+};
+
+function VerifierStructured({ data }) {
+  const { claims, trust_score } = data;
+
+  const scoreColor =
+    trust_score >= 75 ? "#16a34a" :
+    trust_score >= 45 ? "#d97706" :
+    "#dc2626";
+
+  const barColor =
+    trust_score >= 75 ? "#22c55e" :
+    trust_score >= 45 ? "#fbbf24" :
+    "#f87171";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {claims.map((c, i) => {
+        const vs = VERDICT_INLINE[c.verdict] ?? VERDICT_INLINE.UNSUPPORTED;
+        return (
+          <div key={i} style={{ background: "rgba(255,255,255,0.7)", borderRadius: 12, border: "1px solid #f1f5f9", padding: 12 }}>
+            {/* Claim text */}
+            <p style={{ fontSize: 12, fontStyle: "italic", color: "#64748b", margin: 0, marginBottom: 3, lineHeight: 1.5 }}>{c.claim}</p>
+
+            {/* Verdict pill */}
+            <span style={{
+              display: "inline-block",
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 999,
+              background: vs.bg,
+              color: vs.color,
+              marginBottom: 6,
+            }}>
+              {c.verdict}
+            </span>
+
+            {/* Reason */}
+            {c.reason && (
+              <p style={{ fontSize: 12, color: "#64748b", margin: 0, marginBottom: c.sources?.length ? 6 : 0, lineHeight: 1.5 }}>{c.reason}</p>
+            )}
+
+            {/* Source pills */}
+            {c.sources?.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {c.sources.map((s, j) =>
+                  s.url ? (
+                    <a
+                      key={j}
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 10,
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        background: "#E6F1FB",
+                        color: "#0C447C",
+                        textDecoration: "none",
+                        maxWidth: 220,
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                        display: "inline-block",
+                      }}
+                    >
+                      {(s.title || s.url).slice(0, 30)}{(s.title || s.url).length > 30 ? "…" : ""}
+                    </a>
+                  ) : null
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Trust score row */}
+      <div style={{ borderTop: "0.5px solid var(--color-border-tertiary, #e2e8f0)", paddingTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: "var(--color-text-secondary, #64748b)" }}>Trust score:</span>
+          <span style={{ fontSize: 14, color: "var(--color-text-primary, #0f172a)", fontWeight: 600 }}>
+            {trust_score}%
+          </span>
+        </div>
+        <div style={{ width: "100%", background: "#f1f5f9", borderRadius: 999, height: 6, overflow: "hidden" }}>
+          <div style={{ height: 6, borderRadius: 999, background: barColor, width: `${trust_score}%`, transition: "width 0.7s ease-out" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentCard({ agent, round, content }) {
   const config = AGENT_CONFIG[agent] ?? AGENT_CONFIG.system;
+  const verifierData = agent === "verifier" ? tryParseVerifierJSON(content) : null;
 
   return (
     <div
@@ -98,9 +220,13 @@ export default function AgentCard({ agent, round, content }) {
 
       {/* Card body */}
       <div className="px-4 py-3">
-        <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed font-normal tracking-tight">
-          {content}
-        </p>
+        {verifierData ? (
+          <VerifierStructured data={verifierData} />
+        ) : (
+          <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed font-normal tracking-tight">
+            {content}
+          </p>
+        )}
       </div>
     </div>
   );

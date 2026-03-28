@@ -3,16 +3,17 @@ import DebatePanel from "./DebatePanel";
 import { startDebate } from "./api";
 
 const DEMO_QUERIES = [
-  "Is it safe to take ibuprofen and paracetamol together?",
-  "Was the 2008 financial crisis caused primarily by deregulation?",
-  "Should a startup prioritise growth or profitability in year 1?",
+  "Is it safe to take paracetamol and ibuprofen together?",
+  "Should metformin be the first-line treatment for Type 2 diabetes?",
+  "Is there evidence that SSRIs are effective for adolescent depression?",
 ];
 
 const AGENT_LEGEND = [
-  { label: "Solver",   badge: "bg-teal-100 text-teal-800",   dot: "bg-teal-400" },
-  { label: "Critic",   badge: "bg-rose-100 text-rose-800",   dot: "bg-rose-400" },
-  { label: "Verifier", badge: "bg-blue-100 text-blue-800",   dot: "bg-blue-400" },
-  { label: "Resolver", badge: "bg-amber-100 text-amber-800", dot: "bg-amber-400" },
+  { label: "Solver",             badge: "bg-teal-100 text-teal-800",   dot: "bg-teal-400"   },
+  { label: "Critic",             badge: "bg-rose-100 text-rose-800",   dot: "bg-rose-400"   },
+  { label: "Gemini Challenger",  badge: "bg-purple-100 text-purple-800", dot: "bg-purple-400" },
+  { label: "Verifier",           badge: "bg-blue-100 text-blue-800",   dot: "bg-blue-400"   },
+  { label: "Resolver",           badge: "bg-amber-100 text-amber-800", dot: "bg-amber-400"  },
 ];
 
 export default function App() {

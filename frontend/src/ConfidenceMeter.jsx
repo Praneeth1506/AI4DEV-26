@@ -1,7 +1,9 @@
 export default function ConfidenceMeter({ resolverContent }) {
-  // Matches both "CONFIDENCE_SCORE: 85" and "Confidence: 85%"
-  const match = resolverContent?.match(/(?:CONFIDENCE_SCORE|Confidence):\s*(\d+)/i);
-  const score = match ? parseInt(match[1]) : null;
+  // Match the LAST occurrence of Confidence: so we always get the score line,
+  // not an accidental mention of the word inside the answer text.
+  const allMatches = [...(resolverContent?.matchAll(/(?:CONFIDENCE_SCORE|Confidence):\s*(\d+)/gi) ?? [])];
+  const lastMatch = allMatches.at(-1);
+  const score = lastMatch ? parseInt(lastMatch[1]) : null;
 
   // Matches both "RELIABILITY_GRADE: A" and "Reliability grade: A"
   const gradeMatch = resolverContent?.match(/(?:RELIABILITY_GRADE|Reliability grade):\s*([A-D][+-]?)/i);
