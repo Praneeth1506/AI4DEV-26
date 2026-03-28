@@ -1,8 +1,10 @@
 export default function ConfidenceMeter({ resolverContent }) {
-  const match = resolverContent?.match(/CONFIDENCE_SCORE:\s*(\d+)/i);
+  // Matches both "CONFIDENCE_SCORE: 85" and "Confidence: 85%"
+  const match = resolverContent?.match(/(?:CONFIDENCE_SCORE|Confidence):\s*(\d+)/i);
   const score = match ? parseInt(match[1]) : null;
 
-  const gradeMatch = resolverContent?.match(/RELIABILITY_GRADE:\s*([A-D][+-]?)/i);
+  // Matches both "RELIABILITY_GRADE: A" and "Reliability grade: A"
+  const gradeMatch = resolverContent?.match(/(?:RELIABILITY_GRADE|Reliability grade):\s*([A-D][+-]?)/i);
   const grade = gradeMatch ? gradeMatch[1] : null;
 
   if (!score) return null;

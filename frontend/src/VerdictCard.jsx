@@ -2,35 +2,39 @@ import { useMemo } from "react";
 
 /**
  * Parses resolver output to extract structured verdict data.
- * Looks for AGREED_ON, DISAGREED_ON, TIE_BROKEN_ON sections, or
- * falls back to heuristic extraction.
+ * Supports both new format (FINAL_ANSWER, KEY_REASONING, DISSENTING_VIEWS)
+ * and legacy format (AGREED_ON, DISAGREED_ON, TIE_BROKEN_ON).
  */
 function parseVerdictSections(resolverContent, allEvents) {
   if (!resolverContent) return null;
 
-  // Extract section content from tagged lines
-  const extractSection = (tag) => {
-    const regex = new RegExp(`${tag}:\\s*([^\\n]+(?:\\n(?!\\w+:)[^\\n]*)*)`, "i");
-    const match = resolverContent.match(regex);
-    return match ? match[1].trim() : null;
+  const extractSection = (tags) => {
+    for (const tag of tags) {
+      const regex = new RegExp(`${tag}:\\s*([^\\n]+(?:\\n(?![A-Z_]+:)[^\\n]*)*)`, "i");
+      const match = resolverContent.match(regex);
+      if (match) return match[1].trim();
+    }
+    return null;
   };
 
-  const agreed = extractSection("AGREED_ON");
-  const disagreed = extractSection("DISAGREED_ON");
-  const tieBroken = extractSection("TIE_BROKEN_ON");
+  // New prompt format fields (preferred) + legacy fallbacks
+  const finalAnswer  = extractSection(["FINAL_ANSWER"]);
+  const keyReasoning = extractSection(["KEY_REASONING"]);
+  const dissenting   = extractSection(["DISSENTING_VIEWS"]);
 
-  // Extract confidence progression from events (e.g., round scores)
+  // Legacy fields
+  const agreed    = extractSection(["AGREED_ON"]);
+  const disagreed = extractSection(["DISAGREED_ON"]);
+  const tieBroken = extractSection(["TIE_BROKEN_ON"]);
+
+  // Confidence history — matches both "CONFIDENCE_SCORE: 85" and "Confidence: 85%"
   const confidenceHistory = [];
   allEvents.forEach((e) => {
-    const m = e.content?.match(/CONFIDENCE_SCORE:\s*(\d+)/i);
+    const m = e.content?.match(/(?:CONFIDENCE_SCORE|Confidence):\s*(\d+)/i);
     if (m) confidenceHistory.push({ agent: e.agent, round: e.round, score: parseInt(m[1]) });
   });
 
-  // Extract final score from resolver
-  const finalScoreMatch = resolverContent.match(/CONFIDENCE_SCORE:\s*(\d+)/i);
-  const finalScore = finalScoreMatch ? parseInt(finalScoreMatch[1]) : null;
-
-  return { agreed, disagreed, tieBroken, confidenceHistory, finalScore };
+  return { finalAnswer, keyReasoning, dissenting, agreed, disagreed, tieBroken, confidenceHistory };
 }
 
 function ConfidencePipeline({ history }) {
@@ -62,7 +66,10 @@ export default function VerdictCard({ resolverContent, allEvents }) {
 
   if (!verdict) return null;
 
-  const hasAnyContent = verdict.agreed || verdict.disagreed || verdict.tieBroken || verdict.confidenceHistory.length > 0;
+  const hasAnyContent =
+    verdict.finalAnswer || verdict.keyReasoning || verdict.dissenting ||
+    verdict.agreed || verdict.disagreed || verdict.tieBroken ||
+    verdict.confidenceHistory.length > 0;
   if (!hasAnyContent) return null;
 
   return (
@@ -76,14 +83,59 @@ export default function VerdictCard({ resolverContent, allEvents }) {
         </div>
         <div>
           <p className="text-sm font-bold text-violet-900">Consensus Verdict</p>
-          <p className="text-xs text-violet-600 font-medium">What the agents agreed and disagreed on</p>
+          <p className="text-xs text-violet-600 font-medium">Resolver's synthesis of the full debate</p>
         </div>
       </div>
 
       {/* Content */}
       <div className="px-5 py-4 space-y-4">
 
-        {/* Agreed */}
+        {/* Final Answer (new format) */}
+        {verdict.finalAnswer && (
+          <div className="flex gap-3">
+            <div className="w-5 h-5 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center shrink-0 mt-0.5">
+              <svg className="w-3 h-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-1">Final Answer</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{verdict.finalAnswer}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Key Reasoning (new format) */}
+        {verdict.keyReasoning && (
+          <div className="flex gap-3">
+            <div className="w-5 h-5 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
+              <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1">Key Reasoning</p>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{verdict.keyReasoning}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Dissenting Views (new format) */}
+        {verdict.dissenting && (
+          <div className="flex gap-3">
+            <div className="w-5 h-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+              <svg className="w-3 h-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">Dissenting Views</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{verdict.dissenting}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Legacy: Agreed */}
         {verdict.agreed && (
           <div className="flex gap-3">
             <div className="w-5 h-5 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
@@ -98,7 +150,7 @@ export default function VerdictCard({ resolverContent, allEvents }) {
           </div>
         )}
 
-        {/* Disagreed */}
+        {/* Legacy: Disagreed */}
         {verdict.disagreed && (
           <div className="flex gap-3">
             <div className="w-5 h-5 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0 mt-0.5">
@@ -113,7 +165,7 @@ export default function VerdictCard({ resolverContent, allEvents }) {
           </div>
         )}
 
-        {/* Tie broken */}
+        {/* Legacy: Tie broken */}
         {verdict.tieBroken && (
           <div className="flex gap-3">
             <div className="w-5 h-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
@@ -139,3 +191,4 @@ export default function VerdictCard({ resolverContent, allEvents }) {
     </div>
   );
 }
+
